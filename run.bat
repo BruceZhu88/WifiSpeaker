@@ -1,0 +1,2 @@
+python ./wifiSpeaker.py
+pause
