@@ -15,6 +15,7 @@ except Exception as e:
     print(e)
     sys.exit()
 
+appName = 'WifiSpeaker'
 # Dependencies are automatically detected, but it might need fine tuning.
 build_exe_options = {"packages": ["os"],
                      "include_msvcr": True,
@@ -28,10 +29,10 @@ if sys.platform == 'win32':
     base = 'Win32GUI'
 
 executables = [
-    Executable('wifiSpeaker.py', base=base, icon='./src/config/icon/sound_speaker_48px.ico')
+    Executable('WifiSpeaker.py', base=base, icon='./src/config/icon/sound_speaker_48px.ico')
 ]
 
-setup(name='wifiSpeaker',
+setup(name=appName,
       version=appVerson,
       description='SQA Tool',
       options = {"build_exe": build_exe_options},
@@ -82,5 +83,5 @@ def zip_dir(dirname, zipfilename):
     print("Zip folder succeed!")
 
 dirname = "./build/exe.win-amd64-3.4/"
-zipfilename = "wifiSpeaker_v{0}.zip".format(appVerson)
+zipfilename = "{0}_v{1}.zip".format(appName, appVerson)
 zip_dir(dirname, zipfilename)

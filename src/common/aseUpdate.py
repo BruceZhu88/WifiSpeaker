@@ -292,15 +292,15 @@ class aseUpdate:
     def update_local(self, local_file, version):
         self.switch_frame("rightFrame")
 
-        time.sleep(1)
+        time.sleep(3)
         LocalUpdateButton = self.find_element("xpath", self.pageTimeout, "//*[@id='LocalUpdateButton']")
         LocalUpdateButton.click()
 
-        time.sleep(1)
+        time.sleep(3)
         datafile = self.find_element("xpath", self.pageTimeout, "//*[@id='datafile']")
         datafile.send_keys('%s'%local_file)
 
-        time.sleep(1)
+        time.sleep(3)
         LoadFileButton = self.find_element("xpath", self.pageTimeout, "//*[@id='LoadFileButton']")
         LoadFileButton.click()
 

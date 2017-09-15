@@ -1,2 +1,2 @@
-c:\python34\python setup.py bdist_msi
+c:\python34\python cxsetup.py bdist_msi
 pause
