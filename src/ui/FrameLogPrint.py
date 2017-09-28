@@ -10,19 +10,19 @@
 #-------------------------------------------------------------------------------
 from .PyTkinter import *
 import tkinter as tk
-import logging
 import time
+
+from src.common.logger_config import logger
 
 class FrameLogPrint:
 
-    def __init__(self, Root, title='', icon='', modelName=''):
+    def __init__(self, Root, title='', icon='', status=1):
         """"""
         self.title = title
         self.icon = icon
         self.root = Root
         self.top = tk.Toplevel(self.root)
 
-        self.modelName = modelName
         self.__firstLogIdx = 0
         self.__lastLogIdx = 0
         self.__lastSavedLogIdx = 0
@@ -36,12 +36,12 @@ class FrameLogPrint:
         self.__cachePos = -1
         self.frm_right_print = None
 
-        self.create_frm()
+        self.create_frm(status)
         self.__setupTop()
 
     def __setupTop(self):
         #self.top.protocol('WM_DELETE_WINDOW', lambda:0) #ignore close
-        self.top.title(self.title + "--Auto update OTA for " + self.modelName)
+        self.top.title(self.title)
         self.top.iconbitmap(self.icon)
 
         self.top.resizable(True, True)
@@ -57,13 +57,16 @@ class FrameLogPrint:
         self.top.geometry(size)
         self.top.attributes('-topmost', 1)
 
-    def create_frm(self):
+    def create_frm(self, status):
         self.frm_logPrint = tk.Frame(self.top)
         self.frm_status = tk.Frame(self.top, bg="#292929")
         self.frm_logPrint.pack(side='top', fill='both', expand='yes')
         self.frm_status.pack(side='bottom', fill='x')
         self.create_frm_logPrint()
-        self.create_frm_status()
+        if status==1:
+            self.create_frm_status()
+        elif status==2:
+            self.create_frm_status2()            
 
     def create_frm_logPrint(self):
         self.frm_right_print = PyScrolledText(self.frm_logPrint,
@@ -81,7 +84,7 @@ class FrameLogPrint:
         self.labelRuntimes = PyLabel(self.frm_status, text='Total Times: ', font=("Monaco", 9))
         self.labelShowRuntimes = PyLabel(self.frm_status, text='', font=("Monaco", 9))
         self.labelNetworkError = PyLabel(self.frm_status, text='NetworkError: ', font=("Monaco", 9))
-        self.labelShowNetworkError = PyLabel(self.frm_status, text='0/0', font=("Monaco", 9))
+        self.labelShowNetworkError = PyLabel(self.frm_status, text='0', font=("Monaco", 9))
         self.labelPass = PyLabel(self.frm_status, text='Pass: ', font=("Monaco", 9))
         self.labelShowPass = PyLabel(self.frm_status, text='0/0(Upgrade) 0/0(Downgrade)', font=("Monaco", 9))
 
@@ -97,6 +100,21 @@ class FrameLogPrint:
         self.labelPass.grid(row=1, column=4, sticky="w")
         self.labelShowPass.grid(row=1, column=5, sticky="w")
 
+    def create_frm_status2(self):
+        self.labelTotalTimes = PyLabel(self.frm_status, text='Total Times: ', font=("Monaco", 9))
+        self.labelShowTotalTimes = PyLabel(self.frm_status, text='', font=("Monaco", 9))
+        self.labelDHCP = PyLabel(self.frm_status, text='DHCP: ', font=("Monaco", 9))
+        self.labelShowDHCP = PyLabel(self.frm_status, text='', font=("Monaco", 9))        
+        self.labelSuccesTimes = PyLabel(self.frm_status, text='Success Times: ', font=("Monaco", 9))
+        self.labelShowSuccesTimes = PyLabel(self.frm_status, text='', font=("Monaco", 9))
+        
+        self.labelTotalTimes.grid(row=0, column=0, padx=1, pady=1, sticky="w")
+        self.labelShowTotalTimes.grid(row=0, column=1, padx=1, pady=1, sticky="w")
+        self.labelDHCP.grid(row=0, column=2, padx=1, pady=1, sticky="w")
+        self.labelShowDHCP.grid(row=0, column=3, padx=1, pady=1, sticky="w")
+        self.labelSuccesTimes.grid(row=1, column=0, padx=1, pady=1, sticky="w")
+        self.labelShowSuccesTimes.grid(row=1, column=1, padx=1, pady=1, sticky="w")
+        
     def __onBtnExit(self):
         self.top.destroy()
 
@@ -105,7 +123,7 @@ class FrameLogPrint:
         self.top.mainloop()
 
     def addLog(self, log, tag):
-        logging.log(logging.INFO, log)
+        logger.info(log)
         if log[-1] != '\n':
             log = log + '\n'
 
@@ -125,8 +143,8 @@ class FrameLogPrint:
 
         self.frm_right_print.see('end')
 
-        if self.__lastLogIdx - self.__lastSavedLogIdx > 100:
-            self.__saveLog()
+        #if self.__lastLogIdx - self.__lastSavedLogIdx > 100:
+        #    self.__saveLog()
 
         self.frm_right_print.configure(state = 'disabled')
 

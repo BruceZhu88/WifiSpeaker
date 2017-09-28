@@ -19,7 +19,7 @@ appName = 'WifiSpeaker'
 # Dependencies are automatically detected, but it might need fine tuning.
 build_exe_options = {"packages": ["os"],
                      "include_msvcr": True,
-                     "include_files": ['aseUpdate.ini', 'geckodriver.exe'],
+                     "include_files": ['aseUpdate.ini', 'wifiSetting.ini', 'geckodriver.exe'],
                      #"no_compress": True
                      #"compressed": True # Just support cx_freeze version <= 4.3.3
                      }

@@ -10,10 +10,10 @@ import time
 #import requests
 import urllib.request
 import configparser
-import logging
 import sys
 
 #from src.common.createHTMLReport import *
+from src.common.logger_config import logger
 from selenium import webdriver
 from selenium.webdriver.support.wait import WebDriverWait
 
@@ -25,8 +25,8 @@ class aseUpdate:
             conf = configparser.ConfigParser()
             conf.read('.\\src\\config\\aseUpdate.ini')
             #parent_path = os.path.realpath(os.path.join(os.getcwd(), ".."))
-            self.low_version_path = conf.get("Firmware", "low_version_path")
-            self.high_version_path = conf.get("Firmware", "high_version_path")
+            self.low_version_path = '{}'.format(conf.get("Firmware", "low_version_path")) #avoid path contains empty strings
+            self.high_version_path = '{}'.format(conf.get("Firmware", "high_version_path"))
             self.low_version = conf.get("Firmware", "low_version").replace(' ', '')
             self.high_version = conf.get("Firmware", "high_version").replace(' ', '')
             self.cycle = conf.getint("Running_times", "times")
@@ -36,6 +36,7 @@ class aseUpdate:
             self.printLog(e)
             sys.exit()
 
+        self.shot_path = ''
         self.pageTimeout = 15
         self.update_times = 0
         self.downgrade_times = 0
@@ -53,14 +54,14 @@ class aseUpdate:
     def printLog(self, info):
         try:
             self.framelogPrint.addLog(info, ' ')
-            logging.log(logging.DEBUG, info)
-        except:
+        except Exception as e:
+            logger.debug("Error when printLog: {}".format(e))
             self.driver.quit()
             sys.exit()
 
     def screenshot(self, info):
-        self.printLog("%s\%s_%s.jpg"%(shot_path,info,time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime()) ))
-        self.driver.get_screenshot_as_file("%s/%s_%s.jpg"%(shot_path,info,time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime()) ))
+        self.printLog("%s\%s_%s.jpg"%(self.shot_path,info,time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime()) ))
+        self.driver.get_screenshot_as_file("%s/%s_%s.jpg"%(self.shot_path,info,time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime()) ))
 
     def check_network(self, url):
         try:
@@ -85,7 +86,7 @@ class aseUpdate:
     #make screen shot directory
     def make_shot_dir(self):
         #shot_conf = dict(root_run = os.getcwd())
-        run_shot_dir = os.path.realpath(os.path.join(os.getcwd(), ".", 'Shot'))
+        run_shot_dir = os.path.realpath(os.path.join(os.getcwd(), ".", 'shot'))
 
         if not os.path.exists(run_shot_dir):
             os.makedirs(run_shot_dir)
@@ -227,7 +228,7 @@ class aseUpdate:
                     f=1
                     return True
                 except Exception as e:
-                    logging.log(logging.DEBUG, e)
+                    #logger.debug(e)
                     f=0
             else:
                 return False
@@ -274,10 +275,10 @@ class aseUpdate:
         time.sleep(5)
         self.switch_frame("default")
         self.switch_frame("rightFrame")
-        logging.log(logging.DEBUG, 'Checking if there is agreement page!')
+        logger.debug('Checking if there is agreement page!')
         if self.find_element("xpath", self.pageTimeout, "//*[@id='BtnOK1']") == None:
             return
-        logging.log(logging.DEBUG, 'Start to click agreement page!')
+        logger.debug('Start to click agreement page!')
         self.find_element("xpath", self.pageTimeout, "//*[@id='BtnOK1']").click()
         time.sleep(3)
         self.find_element("xpath", self.pageTimeout, "//*[@id='BtnOK2']").click()
@@ -292,7 +293,7 @@ class aseUpdate:
     def update_local(self, local_file, version):
         self.switch_frame("rightFrame")
 
-        time.sleep(3)
+        time.sleep(1)
         LocalUpdateButton = self.find_element("xpath", self.pageTimeout, "//*[@id='LocalUpdateButton']")
         LocalUpdateButton.click()
 
@@ -319,7 +320,7 @@ class aseUpdate:
                     self.printLog("Start burn into...!")
                     f = 1
                 except:
-                    logging.log(logging.DEBUG, 'Wait for Yes button')
+                    logger.debug('Wait for Yes button')
 
                 #print('*', end = '')
                 """
@@ -447,7 +448,7 @@ class aseUpdate:
         Run_status = "Running"
         update = "Update success from %s to version %s on internet"%(self.low_version,self.high_version)
         downgrade = "Downgrade success from %s to version %s on local"%(self.high_version,self.low_version)
-        shot_path = self.make_shot_dir()
+        self.shot_path = self.make_shot_dir()
 
         start_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
         start = time.time()
@@ -474,6 +475,7 @@ class aseUpdate:
                     duration = str(datetime.timedelta(seconds=diff_time))
                     #self.printLog("Success update times is %d"%self.update_times)
                     self.framelogPrint.labelShowElapsedTime['text'] = duration
+                    self.framelogPrint.labelShowNetworkError['text'] = '{}'.format(self.Network_Error)
                     self.framelogPrint.labelShowPass['text'] = '{0}/{1}(Upgrade) {2}/{3}(Downgrade)'.format(self.update_times,  i, self.downgrade_times, i)
                     #CreateHTMLRpt.report_result(self.title,start_time,duration,str(i),Run_status,update,str(self.update_times),downgrade,str(self.downgrade_times),'self.Network_Error',str(self.Network_Error))
 

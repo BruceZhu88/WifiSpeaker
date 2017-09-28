@@ -19,10 +19,10 @@ import re
 import threading
 import subprocess
 import sys
-import logging
 import configparser
 import _thread
 from .checkUpdates import checkUpdates
+from src.common.logger_config import logger
 
 class appUpdate:
 
@@ -40,7 +40,7 @@ class appUpdate:
             self.unzip_path = conf.get("Update", "unzip_path")
             self.app_zip = conf.get("Update", "app_zip")
         except Exception as e:
-            logging.log(logging.DEBUG, 'Error: {0}'.format(e))
+            logger.debug('Error: {0}'.format(e))
 
     def checkForUpdates(self):
         if not os.path.exists('.\\download'):
@@ -51,12 +51,12 @@ class appUpdate:
             self.messagebox.showinfo('Tips', 'Cannot communicate with new version server!\nPlease check your network!')
             return
         downVer = checkupdates.getVer(dest_dir)
-        logging.log(logging.DEBUG, 'Starting compare version')
+        logger.debug('Starting compare version')
         if checkupdates.compareVer(downVer, self.currentVer):
             ask = self.messagebox.askokcancel('Tips', 'New version %s is detected !\n Do you want to update now?'%downVer)
             if ask:
                 self.downloadThread(downVer)
-                logging.log(logging.DEBUG, 'Starting download')
+                logger.debug('Starting download')
         else:
             self.messagebox.showinfo('Tips', 'No new version!')
 
@@ -64,14 +64,14 @@ class appUpdate:
         try:
             _thread.start_new_thread(self.downloadZip, (downVer,) )
         except:
-            logging.log(logging.DEBUG, 'Cannot start power cycle thread!!!')
+            logger.debug('Cannot start power cycle thread!!!')
 
     def downloadZip(self, downVer):
         newVerPath = '.\\download\\{}'.format(self.app_zip)
         installFile = '.\\download\\{}'.format(self.install_path)
         checkupdates = checkUpdates()
         url = self.app_path+"_v"+downVer+".zip"
-        logging.log(logging.DEBUG, 'url = '+url)
+        logger.debug('url = '+url)
         if not checkupdates.downLoadFromURL(url, newVerPath):
             self.messagebox.showinfo('Tips', 'Cannot communicate with new version server!\nPlease check your network!')
             return
@@ -82,20 +82,20 @@ class appUpdate:
         checkupdates.unzip_dir(newVerPath, '.\\download\\{}'.format(self.unzip_path))
         ask = self.messagebox.askokcancel('Tips', 'Do you want to install this new version?')
         if ask:
-            logging.log(logging.DEBUG, "Starting install")
+            logger.debug("Starting install")
             self.installThread()
-            logging.log(logging.DEBUG, "Close UI")
+            logger.debug("Close UI")
             self.root.destroy()
-            logging.log(logging.DEBUG, "System exit")
+            logger.debug("System exit")
             sys.exit()
 
     def installThread(self):
         batPath = r'"%s\\download\\%s"'%(os.getcwd(), self.install_path) #Note: path must be '"D:\Program Files"' to avoid include space in path
-        logging.log(logging.DEBUG, "Run %s"%batPath)
+        logger.debug("Run %s"%batPath)
         try:
             _thread.start_new_thread(self.execBat, (batPath,) )
         except Exception as e:
-           logging.log(logging.DEBUG, 'Error when install: {0}'.format(e))
+           logger.debug('Error when install: {0}'.format(e))
 
     def execBat(self, path):
         os.system(path)

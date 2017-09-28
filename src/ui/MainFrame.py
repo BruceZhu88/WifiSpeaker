@@ -10,19 +10,21 @@ import re
 import threading
 import subprocess
 import sys
-import logging
 import configparser
 import _thread
 import webbrowser
 #-----------------------------------
 from src.ui.appUpdate import appUpdate
-from src.common.get_info import device_status
-from src.common.clearLogs import clearLogs
+from src.common.aseInfo import aseInfo
 from src.common.ase_finder import deviceScan
+from src.common.logger_config import logger
 from .FrameUpdateSet import FrameUpdateSet
+from src.common.wifiSetup import wifiSetup
+from .FrameLogPrint import FrameLogPrint
+from src.common.database import *
 #-----------------------------------
 #-----------------------------------
-dev_status = device_status()
+ase_info = aseInfo()
 
 monaco_font = ('Monaco', 12)
 font = monaco_font
@@ -40,12 +42,13 @@ try:
     conf.read('./src/config/version.ini')
     appVerson = conf.get("version", "app")
 except Exception as e:
-    logging.log(logging.DEBUG, 'Error: {0}'.format(e))
+    logger.debug('Error: {0}'.format(e))
     sys.exit()
 
+logger.info('Start App')
 class MainFrame:
 
-    def __init__(self, logfilename):
+    def __init__(self):
 
         self.root = tk.Tk()
         self.title = "Wifi Speaker v{0} SQA".format(appVerson)
@@ -62,13 +65,11 @@ class MainFrame:
         self.modelName = ''
 
         #thread
-        _thread.start_new_thread(deviceScan(self.infoPage, self.labelStatus, self.__listBoxDeviceName, messagebox).scan, ())
+        self.__onBtnRefresh()
         #self.refresh_static()
         #self.refresh_dynamic()
         #self.refresh_temperature()
         #self.refresh_aseinfo()
-
-        _thread.start_new_thread(clearLogs(messagebox, logfilename).clearLog, ())
 
     def mainLoop(self):
         self.__setupRoot()
@@ -278,8 +279,8 @@ class MainFrame:
                                           state='active',
                                           command=self.__onBtnPair)
 
-        self.labelBt_connectWay1 = PyLabel(self.frm_right_information, text= 'bt_connectWay: ', font=font )
-        bt_reconnet = ["NA","Manual", "Automatic", "Disable",]#manual automatic none
+        self.labelBt_reconnect = PyLabel(self.frm_right_information, text= 'bt_reconnect: ', font=font )
+        bt_reconnet = ["Manual", "Automatic", "Disable",]#manual automatic none
         self.comboboxBt_reconnet = ttk.Combobox(self.frm_right_information,
                                                        width=15,
                                                        values=bt_reconnet)
@@ -330,7 +331,7 @@ class MainFrame:
         self.labelBt_open1.grid(row=5, column=0, padx=1, pady=2, sticky="e")
         self.CheckbtnBt_open2.grid(row=5, column=1, padx=1, pady=2, sticky="w")
 
-        self.labelBt_connectWay1.grid(row=7, column=0, padx=1, pady=2, sticky="e")
+        self.labelBt_reconnect.grid(row=7, column=0, padx=1, pady=2, sticky="e")
         self.comboboxBt_reconnet.grid(row=7, column=1, padx=1, pady=2, sticky="w")
 
         self.labelDevice_btpaired1.grid(row=8, column=0, padx=1, pady=2, sticky="e")
@@ -396,7 +397,13 @@ class MainFrame:
                                           state='active',
                                           command=self.__onBtnUnlock)
 
-        self.labelEmpty = PyLabel(self.frm_right_operation, text= ' '*33, font=font)
+        self.labelEmpty = PyLabel(self.frm_right_operation, text= ' '*21, font=font)
+
+        self.btnWebpage = PyButton(self.frm_right_operation,
+                                          text="Go to WebPage",
+                                          font=font,
+                                          state='active',
+                                          command=self.__onBtnWebpage)
 
         self.btnReset = PyButton(self.frm_right_operation,
                                           text=" Factory Reset ",
@@ -408,7 +415,8 @@ class MainFrame:
         self.btnEdit.grid(row=0, column=1, padx=1, pady=2, sticky="wesn")
         self.btnUnlock.grid(row=0, column=2, padx=1, pady=2, sticky="e")
         self.labelEmpty.grid(row=0, column=3, padx=1, pady=2, sticky="e")
-        self.btnReset.grid(row=0, column=4, padx=1, pady=2, sticky="e")
+        self.btnWebpage.grid(row=0, column=4, padx=1, pady=2, sticky="w")
+        self.btnReset.grid(row=0, column=5, padx=1, pady=2, sticky="e")
 
     def create_frm_right_page(self):
         self.btnBack = PyButton(self.frm_right_page,
@@ -419,11 +427,11 @@ class MainFrame:
 
         self.labelEmpty = PyLabel(self.frm_right_page, text= ' '*34, font=font)
 
-        self.btnWebpage = PyButton(self.frm_right_page,
-                                          text="Go to WebPage",
+        self.btnAutoSetupWifi = PyButton(self.frm_right_page,
+                                          text="Auto setup Wifi",
                                           font=font,
                                           state='active',
-                                          command=self.__onBtnWebpage)
+                                          command=self.__onBtnAutoSetupWifi)
 
         self.btnAutoUpdate = PyButton(self.frm_right_page,
                                           text="OTA Auto update",
@@ -433,7 +441,7 @@ class MainFrame:
 
         self.btnBack.grid(row=0, column=0, padx=1, pady=2, sticky="w")
         self.labelEmpty.grid(row=0, column=1, padx=1, pady=2, sticky="w")
-        self.btnWebpage.grid(row=0, column=2, padx=1, pady=2, sticky="w")
+        self.btnAutoSetupWifi.grid(row=0, column=2, padx=1, pady=2, sticky="w")
         self.btnAutoUpdate.grid(row=0, column=3, padx=1, pady=2, sticky="w")
 
     '''
@@ -452,15 +460,31 @@ class MainFrame:
         self.labelStatus.grid(row=0, column=0, padx=5, pady=5, sticky="wesn")
 
     #---------------------------------------------------------------------------------
+    def __onBtnAutoSetupWifi(self):
+        title = self.title + "--Auto setup Wifi"
+        framelogPrint = FrameLogPrint(self.root, title, self.icon, 2)
+        self.infoPage = 0
+        wifisetup = wifiSetup(framelogPrint, self.infoPage, self.btnRefresh, self.labelStatus, self.__listBoxDeviceName, messagebox)
+        _thread.start_new_thread(wifisetup.setup, (self.ip, ))
+    
     def __onBtnUnlock(self):
         _thread.start_new_thread(self.__Unlock, ())
 
     def __Unlock(self):
-        status = str(self.GetAse('readinfo')[-1], 'utf-8')
+        self.btnUnlock['state'] = 'disabled'
+        logger.info("Start unlock...")
+        try:
+            status = str(self.GetAse('readinfo')[-1], 'utf-8')
+        except Exception as e:
+            logger.info(e)
+            messagebox.showinfo('Unlock', 'Unlock Failed! {}'.format(e))
+            self.btnUnlock['state'] = 'normal'
+            return
         if 'Successful' in status:
             messagebox.showinfo('Unlock', 'Unlock Successfully!')
         else:
             messagebox.showinfo('Unlock', 'Unlock Failed!')
+        self.btnUnlock['state'] = 'normal'
 
     def __onBtnInputIP(self):
         inputIP = self.inputIPStr.get()
@@ -485,25 +509,22 @@ class MainFrame:
         try:
             threading.Timer(0, lambda: webbrowser.open(url) ).start()
         except Exception as e:
-            logging.log(logging.DEBUG, e)
+            logger.debug(e)
 
     def __onBtnPair(self):
         if self.btnPair['text'] == 'Pair':
             self.btnPair['text'] = 'Cancel'
-            self.pair_url = 'http://'+self.ip+'/api/setData?path=bluetooth%3AexternalDiscoverable&roles=activate&value=%7B%22type%22%3A%22bool_%22%2C%22bool_%22%3Atrue%7D&'
-            dev_status.get_url(self.pair_url)
+            ase_info.pairBT('pair', self.ip)
         else:
             self.btnPair['text'] = 'Pair'
-            self.pair_url = 'http://'+self.ip+'/api/setData?path=bluetooth%3AexternalDiscoverable&roles=activate&value=%7B%22type%22%3A%22bool_%22%2C%22bool_%22%3Afalse%7D&'
-            dev_status.get_url(self.pair_url)
+            ase_info.pairBT('cancel', self.ip)
 
     def __onBtnReboot(self):
         self.GetAse('reboot')
         self.__onBtnBack()
 
     def __onBtnReset(self):
-        self.reset_url = 'http://'+self.ip+'/api/setData?path=beo_LocalUI%3AfactoryResetRequest&roles=activate&value=%7B\"type\"%3A\"bool_\"%2C\"bool_\"%3Atrue%7D&'
-        dev_status.get_url(self.reset_url)
+        ase_info.reset(self.ip)
         self.__onBtnBack()
 
     def __onBtnClose(self):
@@ -513,7 +534,7 @@ class MainFrame:
 
     def __onBtnBack(self):
         self.infoPage = 0
-        _thread.start_new_thread(deviceScan(self.infoPage, self.labelStatus, self.__listBoxDeviceName, messagebox).scan, ())
+        self.__onBtnRefresh()
         #self.backFlag = 0
         self.frm_right.grid_forget()
         self.frm_left.grid(row=0, column=0, padx=5, pady=5, sticky="wesn")
@@ -526,24 +547,10 @@ class MainFrame:
         self.entryIP.set('NA')
         self.bt_open.set('NA')
         self.labelDevice_btpaired2['text'] = 'NA'
-        '''
-        self.labelDevice_wifi2['text'] = 'NA'
-        self.labelWifi_level2['text'] = 'NA'
-        self.comboboxBt_reconnet.set('NA')
-        self.labelVolume_default2['text'] = 'NA'
-        self.labelVolume_max2['text'] = 'NA'
-        self.labelConnect_status2['text'] = 'NA'
-        self.labelVolume_current2['text'] = 'NA'
-        self.labelBattery2['text'] = 'Percentage: NA\nHealthStatus: NA\nStatus: NA'
-        self.labelTemp2['text']  = 'Amp1: NAC° Amp2: NAC°'
-        self.labelSN2['text'] = 'NA'
-        self.labelMCU2['text'] = 'NA'
-        self.labelSoundpos2['text'] = 'NA'
-        self.labelDSP2['text'] = 'NA'
-        '''
 
     def __onBtnRefresh(self):
-        _thread.start_new_thread(deviceScan(self.infoPage, self.labelStatus, self.__listBoxDeviceName, messagebox).scan, ())
+        self.btnRefresh['state'] = 'disabled'
+        _thread.start_new_thread(deviceScan(self.infoPage, self.btnRefresh, self.labelStatus, self.__listBoxDeviceName, messagebox).scan, ())
 
     def __onBtnEdit(self):
         _thread.start_new_thread(self.Edit, ())
@@ -552,7 +559,6 @@ class MainFrame:
         if self.btnEdit['text'] == 'Edit':
             self.btnEdit['text'] = 'Save'
             self.labelStatus['text'] = 'Please modify and then press "Save" button!'
-            #self.__listBoxDeviceName['state'] = 'disabled'
             self.btnBack['state'] = 'disabled'
             self.btnReset['state'] = 'disabled'
             self.labelDeviceName1.grid(row=0, column=0, padx=1, pady=2, sticky="e")
@@ -560,28 +566,17 @@ class MainFrame:
 
         else:
             self.btnEdit['text'] = 'Edit'
-            #-------
             if (self.ip != 'NA') and (self.entryDeviceName.get() != ''):
-                if len(self.entryDeviceName.get())<=18:
-                    self.change_name_url = 'http://'+self.ip+'/api/setData?path=settings%3A%2FdeviceName&roles=value&value=%7B\"type\"%3A\"string_\"%2C\"string_\"%3A\"'+self.entryDeviceName.get()+'\"%7D&'
-                    dev_status.get_url(self.change_name_url)
-            #-------
+                if len(self.entryDeviceName.get())<=19:
+                    ase_info.change_product_name(self.entryDeviceName.get(), self.ip)
+
             if self.bt_open.get() == 1:
-                open_enable = 'true'
+                open_enable = True
             else:
-                open_enable = 'false'
-            self.bt_openset_url = 'http://'+self.ip+'/api/setData?path=settings%3A%2Fbluetooth%2FpairingAlwaysEnabled&roles=value&value=%7B\"type\"%3A\"bool_\"%2C\"bool_\"%3A'+open_enable+'%7D&'
-            dev_status.get_url(self.bt_openset_url)
-            #-------
-            if self.comboboxBt_reconnet.get()== 'Manual':
-                self.bt_reconnect_url = 'http://'+self.ip+'/api/setData?path=settings%3A%2Fbluetooth%2FautoConnect&roles=value&value=%7B\"type\"%3A\"bluetoothAutoConnectMode\"%2C\"bluetoothAutoConnectMode\"%3A\"manual\"%7D&'
-            elif self.comboboxBt_reconnet.get()== 'Automatic':
-                self.bt_reconnect_url = 'http://'+self.ip+'/api/setData?path=settings%3A%2Fbluetooth%2FautoConnect&roles=value&value=%7B\"type\"%3A\"bluetoothAutoConnectMode\"%2C\"bluetoothAutoConnectMode\"%3A\"automatic\"%7D&'
-            else:
-                self.bt_reconnect_url = 'http://'+self.ip+'/api/setData?path=settings%3A%2Fbluetooth%2FautoConnect&roles=value&value=%7B\"type\"%3A\"bluetoothAutoConnectMode\"%2C\"bluetoothAutoConnectMode\"%3A\"none\"%7D&'
-            dev_status.get_url(self.bt_reconnect_url)
+                open_enable = False
+            ase_info.bt_open_set(open_enable, self.ip)
+            ase_info.bt_reconnect_set(self.comboboxBt_reconnet.get(), self.ip)
             self.labelStatus['text'] = 'Ready'
-            #self.__listBoxDeviceName['state'] = 'normal'
             self.btnBack['state'] = 'normal'
             self.btnReset['state'] = 'normal'
             self.labelDeviceName1.grid_forget()
@@ -606,6 +601,7 @@ class MainFrame:
 
             self.deviceName = re.findall(u'(.+) \(', selectDevice)[0]
             self.ip = re.findall(u' \((.+)\)', selectDevice)[0]
+            self.modelName = re.findall(u'\[(.*)\]', selectDevice)[0]
             #self.device = re.findall(u'\)\[(.+)\]', selectDevice)[0]
             self.__showRightFrm()
             """
@@ -619,7 +615,7 @@ class MainFrame:
                 pass
             """
         except Exception as e:
-            logging.log(logging.DEBUG, e)
+            logger.debug(e)
 
     """
     ############################################################################################
@@ -635,9 +631,10 @@ class MainFrame:
                     return
                 self.labelStatus['text'] = 'Information Refreshing.'
 
-                basicInfo = dev_status.status_static('basicInfo', self.ip)
-                device_name = dev_status.status_static('device_name', self.ip)
-                self.modelName = basicInfo['modelName']
+                basicInfo = ase_info.get_info('basicInfo', self.ip)
+                device_name = ase_info.get_info('device_name', self.ip)
+                #self.modelName = basicInfo['modelName']
+                #self.modelName = SQL("select type from scanase where ip='{}'".format(self.ip))[0][0]
                 if self.infoPage == 0:
                     return
 
@@ -646,73 +643,34 @@ class MainFrame:
                 self.labelMCU2['text'] = basicInfo['appVersion']
 
                 self.labelStatus['text'] = 'Information Refreshing..'
-                self.entryDevice_version.set(dev_status.status_static('device_version', self.ip))
+                self.entryDevice_version.set(ase_info.get_info('device_version', self.ip))
                 self.entryIP.set(self.ip)
 
                 self.labelStatus['text'] = 'Information Refreshing...'
 
-                self.bt_open.set(dev_status.status_static('bt_open', self.ip))
+                self.bt_open.set(ase_info.get_info('bt_open', self.ip))
                 if self.bt_open.get() == 1:
                     self.btnPair.grid_forget()
                 else:
                     self.btnPair.grid(row=6, column=1, padx=1, pady=2, sticky="w")
 
-                self.comboboxBt_reconnet.set(dev_status.status_static('bt_connectWay', self.ip))
+                self.comboboxBt_reconnet.set(ase_info.get_info('bt_reconnect', self.ip))
 
-                self.labelVolume_default2['text'] = dev_status.status_static('volume_default', self.ip)
-                self.labelVolume_max2['text'] = dev_status.status_static('volume_max', self.ip)
+                self.labelVolume_default2['text'] = ase_info.get_info('volume_default', self.ip)
+                self.labelVolume_max2['text'] = ase_info.get_info('volume_max', self.ip)
 
-                bt_info = dev_status.status_static('bt', self.ip)
+                bt_info = ase_info.get_info('bt', self.ip)
                 #print(bt_info['rowsCount'])
                 btDevices = ''
                 for bt in bt_info['rows']:
                     if bt[2] != '':
                         btDevices = bt[0] + ' ['+ bt[1] + '] [' + bt[2]+']\n' + btDevices
+                        self.btnPair['text'] = 'Pair'
                     else:
                         btDevices = bt[0] + ' ['+ bt[1] + '] ' +bt[2]+'\n' + btDevices
-
                 self.labelDevice_btpaired2['text'] = btDevices
-
-                #self.labelConnect_status2['text'] = device_connect_status
-                '''
-                if bt_info[0] != '0':
-                    count = 0
-                    line = ''
-                    btDevices = ''
-                    connect_flag = 0
-                    for i in range(0, len(bt_info)):
-                        s = bt_info[i]
-                        if s != 0:#name mac status
-                            if i == 0 :
-                                self.labelNum_btpaired2['text'] = s
-                            elif i == 1 + 3*count:#name
-                                btDevice = '%s.%s'%(count+1,s)
-                                name = s
-                                btDevices = '%s %s%s\n'%(btDevices, btDevice,line)
-
-                                #if i%2 == 0:
-                                #    line = '\n'
-                                #else:
-                                #    line = ''
-
-                            elif i == 2 + 3*count:#mac
-                                mac = s
-                            elif i == 3 + 3*count: #status
-                                count += 1
-                                if s == 'connected':
-                                    device_connect_status = '%s\nconnected\n[%s]'%(name,mac)
-                                    connect_flag = 1
-                                elif connect_flag == 0:
-                                    device_connect_status = ' '
-                else:
-                    self.labelNum_btpaired2['text'] = '0'
-                    btDevices = ' '
-                    device_connect_status = ' '
-                self.labelDevice_btpaired2['text'] = btDevices
-                self.labelConnect_status2['text'] = device_connect_status
-                '''
         except Exception as e:
-            logging.log(logging.DEBUG, e)
+            logger.debug(e)
         self.labelStatus['text'] = 'Ready'
         self.btnRefreshInfo['state'] = 'normal'
         '''
@@ -721,9 +679,10 @@ class MainFrame:
             thread_refresh_static.daemon=True
             thread_refresh_static.start()
         except Exception as e:
-            logging.log(logging.DEBUG, e)
+            logger.debug(e)
         '''
 
+    """
     def refresh_dynamic(self):
         if self.infoStart == 1:
             if self.refresh_info == 1:
@@ -739,7 +698,7 @@ class MainFrame:
             thread_FreshDynamic.setDaemon(True)
             thread_FreshDynamic.start()
         except Exception as e:
-            logging.log(logging.DEBUG, e)
+            logger.debug(e)
 
     def refresh_temperature(self):
         if self.infoStart == 1:
@@ -810,7 +769,8 @@ class MainFrame:
             thread_aseinfo.start()
         except:
             pass
-
+    """
+    
     """Asetk_command
     ################################################################
     """
@@ -818,9 +778,11 @@ class MainFrame:
         pipe = ''
         #if self.root.winfo_exists()== 1:
         try:
-            s=subprocess.Popen(r""+os.getcwd()+"\\src\\config\\thrift\\thrift2.exe "+self.ip+" 1 "+info,shell=True,stdout=subprocess.PIPE)
+            cmd = r'"{}\\src\\config\\thrift\\thrift2.exe"'.format(os.getcwd()) + " {} 1 {}".format(self.ip, info)
+            s=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE)
             pipe=s.stdout.readlines()
-        except:
+        except Exception as e:
+            logger.debug(e)
             return pipe
         return pipe
 

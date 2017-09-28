@@ -12,11 +12,11 @@ from .PyTkinter import *
 import tkinter as tk
 from tkinter.filedialog import askopenfilename
 import configparser
-import logging
 import time
 import sys
 import _thread
 from src.common.aseUpdate import aseUpdate
+from src.common.logger_config import logger
 from .FrameLogPrint import FrameLogPrint
 
 class FrameUpdateSet:
@@ -33,7 +33,7 @@ class FrameUpdateSet:
             self.high_version = conf.get("Firmware", "high_version").replace(' ', '')
             self.cycle = conf.getint("Running_times", "times")
         except Exception as e:
-            logging.log(logging.DEBUG, e)
+            logger.debug(e)
             sys.exit()
 
         self.title = title
@@ -150,10 +150,11 @@ class FrameUpdateSet:
             conf.set("Firmware", "high_version", self.HighVersion.get())
             conf.write(open(path,"w"))
         except Exception as e:
-            logging.log(logging.DEBUG, 'Error: {0}'.format(e))
+            logger.debug('Error: {0}'.format(e))
             sys.exit()
         self.top.destroy()
-        framelogPrint = FrameLogPrint(self.root, self.title, self.icon, self.modelName)
+        title = self.title + "--Auto update OTA for " + self.modelName
+        framelogPrint = FrameLogPrint(self.root, title, self.icon, 1)
         _thread.start_new_thread(self.autoUpdate, (framelogPrint,))
 
     def autoUpdate(self, framelogPrint):

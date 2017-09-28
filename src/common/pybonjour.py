@@ -889,7 +889,6 @@ def DNSServiceProcessResult(
         take a callback parameter.
 
     """
-
     _global_lock.acquire()
     try:
         _DNSServiceProcessResult(sdRef)
